@@ -29,7 +29,7 @@ export class Loader extends Text {
 		private message: string = "Loading...",
 		indicator?: LoaderIndicatorOptions,
 	) {
-		super("", 1, 0);
+		super("", 0, 0);
 		this.ui = ui;
 		this.setIndicator(indicator);
 	}

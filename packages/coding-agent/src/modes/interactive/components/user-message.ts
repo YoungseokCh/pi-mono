@@ -4,6 +4,7 @@ import { getMarkdownTheme, theme } from "../theme/theme.js";
 const OSC133_ZONE_START = "\x1b]133;A\x07";
 const OSC133_ZONE_END = "\x1b]133;B\x07";
 const OSC133_ZONE_FINAL = "\x1b]133;C\x07";
+const USER_MESSAGE_PREFIX = "❯";
 
 /**
  * Component that renders a user message
@@ -13,9 +14,9 @@ export class UserMessageComponent extends Container {
 
 	constructor(text: string, markdownTheme: MarkdownTheme = getMarkdownTheme()) {
 		super();
-		this.contentBox = new Box(1, 1, (content: string) => theme.bg("userMessageBg", content));
+		this.contentBox = new Box(0, 1, (content: string) => theme.bg("userMessageBg", content));
 		this.contentBox.addChild(
-			new Markdown(text, 0, 0, markdownTheme, {
+			new Markdown(`${USER_MESSAGE_PREFIX} ${text}`, 0, 0, markdownTheme, {
 				color: (content: string) => theme.fg("userMessageText", content),
 			}),
 		);
