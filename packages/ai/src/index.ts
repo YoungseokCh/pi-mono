@@ -30,6 +30,7 @@ export type {
 	OAuthCredentials,
 	OAuthLoginCallbacks,
 	OAuthPrompt,
+	OAuthPromptOptionValue,
 	OAuthProvider,
 	OAuthProviderId,
 	OAuthProviderInfo,
