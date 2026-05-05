@@ -38,6 +38,12 @@ async function flushAutocomplete(): Promise<void> {
 	await new Promise((resolve) => setImmediate(resolve));
 }
 
+class PrefixedEditor extends Editor {
+	protected override getLinePrefix(): string {
+		return "❯ ";
+	}
+}
+
 describe("Editor component", () => {
 	describe("Prompt history navigation", () => {
 		it("does nothing on Up arrow when history is empty", () => {
@@ -305,6 +311,38 @@ describe("Editor component", () => {
 
 			lines[0] = "mutated";
 			assert.deepStrictEqual(editor.getLines(), ["a", "b"]);
+		});
+	});
+
+	describe("Line prefixes", () => {
+		it("renders the prompt prefix only on the first logical line", () => {
+			const editor = new PrefixedEditor(createTestTUI(), defaultEditorTheme);
+			editor.setText("first\nsecond");
+
+			const lines = editor.render(12);
+			const contentLines = lines.slice(1, -1).map((line) => stripVTControlCharacters(line));
+
+			assert.ok(contentLines[0]!.startsWith("❯ first"));
+			assert.ok(contentLines[1]!.startsWith("  second"));
+			assert.ok(!contentLines[1]!.startsWith("❯"));
+			for (const line of lines) {
+				assert.strictEqual(visibleWidth(line), 12);
+			}
+		});
+
+		it("renders padding instead of repeating the prompt prefix on wrapped lines", () => {
+			const editor = new PrefixedEditor(createTestTUI(), defaultEditorTheme);
+			editor.setText("abcdefghij");
+
+			const lines = editor.render(8);
+			const contentLines = lines.slice(1, -1).map((line) => stripVTControlCharacters(line));
+
+			assert.ok(contentLines[0]!.startsWith("❯ abcde"));
+			assert.ok(contentLines[1]!.startsWith("  fghij"));
+			assert.ok(!contentLines[1]!.startsWith("❯"));
+			for (const line of lines) {
+				assert.strictEqual(visibleWidth(line), 8);
+			}
 		});
 	});
 

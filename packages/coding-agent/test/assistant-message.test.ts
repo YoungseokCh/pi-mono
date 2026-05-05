@@ -1,3 +1,4 @@
+import { stripVTControlCharacters } from "node:util";
 import type { AssistantMessage } from "@mariozechner/pi-ai";
 import { describe, expect, test } from "vitest";
 import { AssistantMessageComponent } from "../src/modes/interactive/components/assistant-message.js";
@@ -53,5 +54,18 @@ describe("AssistantMessageComponent", () => {
 		expect(rendered.includes(OSC133_ZONE_START)).toBe(false);
 		expect(rendered.includes(OSC133_ZONE_END)).toBe(false);
 		expect(rendered.includes(OSC133_ZONE_FINAL)).toBe(false);
+	});
+
+	test("indents multiline assistant messages under the response prefix", () => {
+		initTheme("dark");
+
+		const component = new AssistantMessageComponent(
+			createAssistantMessage([{ type: "text", text: "first\nsecond" }]),
+		);
+		const lines = component.render(40).map((line) => stripVTControlCharacters(line));
+
+		expect(lines[0]).toContain("● first");
+		expect(lines[1].startsWith("  second")).toBe(true);
+		expect(lines[1].startsWith("●")).toBe(false);
 	});
 });

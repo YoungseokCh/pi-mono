@@ -1,3 +1,4 @@
+import { stripVTControlCharacters } from "node:util";
 import { describe, expect, test } from "vitest";
 import { UserMessageComponent } from "../src/modes/interactive/components/user-message.js";
 import { initTheme } from "../src/modes/interactive/theme/theme.js";
@@ -21,5 +22,17 @@ describe("UserMessageComponent", () => {
 		expect(lines[1]).toContain("hello");
 		expect(lines[2].startsWith(OSC133_ZONE_END + OSC133_ZONE_FINAL)).toBe(true);
 		expect(lines[2].endsWith(BG_RESET)).toBe(true);
+	});
+
+	test("indents multiline user messages under the prompt prefix", () => {
+		initTheme("dark");
+
+		const component = new UserMessageComponent("first\nsecond");
+		const lines = component.render(20).map((line) => stripVTControlCharacters(line));
+
+		expect(lines).toHaveLength(4);
+		expect(lines[1].startsWith("❯ first")).toBe(true);
+		expect(lines[2].startsWith("  second")).toBe(true);
+		expect(lines[2].startsWith("❯")).toBe(false);
 	});
 });

@@ -1,5 +1,6 @@
-import { Box, Container, Markdown, type MarkdownTheme } from "@mariozechner/pi-tui";
+import { Box, Container, type MarkdownTheme } from "@mariozechner/pi-tui";
 import { getMarkdownTheme, theme } from "../theme/theme.js";
+import { PrefixedMarkdown } from "./transcript-prefix.js";
 
 const OSC133_ZONE_START = "\x1b]133;A\x07";
 const OSC133_ZONE_END = "\x1b]133;B\x07";
@@ -16,7 +17,7 @@ export class UserMessageComponent extends Container {
 		super();
 		this.contentBox = new Box(0, 1, (content: string) => theme.bg("userMessageBg", content));
 		this.contentBox.addChild(
-			new Markdown(`${USER_MESSAGE_PREFIX} ${text}`, 0, 0, markdownTheme, {
+			new PrefixedMarkdown(text, theme.fg("userMessageText", `${USER_MESSAGE_PREFIX} `), markdownTheme, {
 				color: (content: string) => theme.fg("userMessageText", content),
 			}),
 		);

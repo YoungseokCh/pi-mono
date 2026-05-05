@@ -473,7 +473,10 @@ export class Editor implements Component, Focusable {
 		// Emit hardware cursor marker only when focused and not showing autocomplete
 		const emitCursorMarker = this.focused && !this.autocompleteState;
 
-		for (const layoutLine of visibleLines) {
+		for (let i = 0; i < visibleLines.length; i++) {
+			const layoutLine = visibleLines[i]!;
+			const isFirstVisibleLine = this.scrollOffset + i === 0;
+			const renderedLinePrefix = isFirstVisibleLine ? linePrefix : " ".repeat(linePrefixWidth);
 			let displayText = layoutLine.text;
 			let lineVisibleWidth = visibleWidth(layoutLine.text);
 			let cursorInPadding = false;
@@ -512,7 +515,7 @@ export class Editor implements Component, Focusable {
 			const lineRightPadding = cursorInPadding ? rightPadding.slice(1) : rightPadding;
 
 			// Render the line (no side borders, just horizontal lines above and below)
-			result.push(`${leftPadding}${linePrefix}${displayText}${padding}${lineRightPadding}`);
+			result.push(`${leftPadding}${renderedLinePrefix}${displayText}${padding}${lineRightPadding}`);
 		}
 
 		// Render bottom border (with scroll indicator if more content below)

@@ -1,20 +1,12 @@
 import type { AssistantMessage } from "@mariozechner/pi-ai";
 import { Container, Markdown, type MarkdownTheme, Spacer, Text } from "@mariozechner/pi-tui";
 import { getMarkdownTheme, theme } from "../theme/theme.js";
+import { prefixTranscriptLines } from "./transcript-prefix.js";
 
 const OSC133_ZONE_START = "\x1b]133;A\x07";
 const OSC133_ZONE_END = "\x1b]133;B\x07";
 const OSC133_ZONE_FINAL = "\x1b]133;C\x07";
 const ASSISTANT_MESSAGE_PREFIX = "●";
-
-function prefixFirstLine(line: string): string {
-	const prefix = `${theme.fg("accent", ASSISTANT_MESSAGE_PREFIX)} `;
-	const lineWithoutLeadingPadding = line.startsWith(" ") ? line.slice(1) : line;
-	const lineWithoutTrailingPadding = lineWithoutLeadingPadding.endsWith(" ")
-		? lineWithoutLeadingPadding.slice(0, -1)
-		: lineWithoutLeadingPadding;
-	return prefix + lineWithoutTrailingPadding;
-}
 
 /**
  * Component that renders a complete assistant message
@@ -69,10 +61,11 @@ export class AssistantMessageComponent extends Container {
 			return lines;
 		}
 
-		lines[0] = prefixFirstLine(lines[0]);
-		lines[0] = OSC133_ZONE_START + lines[0];
-		lines[lines.length - 1] = OSC133_ZONE_END + OSC133_ZONE_FINAL + lines[lines.length - 1];
-		return lines;
+		const prefixedLines = prefixTranscriptLines(lines, `${theme.fg("accent", ASSISTANT_MESSAGE_PREFIX)} `);
+		prefixedLines[0] = OSC133_ZONE_START + prefixedLines[0];
+		prefixedLines[prefixedLines.length - 1] =
+			OSC133_ZONE_END + OSC133_ZONE_FINAL + prefixedLines[prefixedLines.length - 1];
+		return prefixedLines;
 	}
 
 	updateContent(message: AssistantMessage): void {
