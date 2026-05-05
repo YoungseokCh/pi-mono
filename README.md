@@ -27,6 +27,11 @@
 
 Tools for building AI agents.
 
+## Changelog of this fork
+
+- Add OpenAI headless login
+- Adjust coding-agent TUI design - more prefixes, less line spacing
+
 ## Share your OSS coding agent sessions
 
 If you use pi or other coding agents for open source work, please share your sessions.
