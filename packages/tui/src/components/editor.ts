@@ -295,6 +295,10 @@ export class Editor implements Component, Focusable {
 		this.autocompleteMaxVisible = Number.isFinite(maxVisible) ? Math.max(3, Math.min(20, Math.floor(maxVisible))) : 5;
 	}
 
+	protected getLinePrefix(): string {
+		return "";
+	}
+
 	/** Set of currently valid paste IDs, for marker-aware segmentation. */
 	private validPasteIds(): Set<number> {
 		return new Set(this.pastes.keys());
@@ -410,10 +414,13 @@ export class Editor implements Component, Focusable {
 		const maxPadding = Math.max(0, Math.floor((width - 1) / 2));
 		const paddingX = Math.min(this.paddingX, maxPadding);
 		const contentWidth = Math.max(1, width - paddingX * 2);
+		const linePrefix = this.getLinePrefix();
+		const linePrefixWidth = visibleWidth(linePrefix);
+		const prefixedContentWidth = Math.max(1, contentWidth - linePrefixWidth);
 
 		// Layout width: with padding the cursor can overflow into it,
 		// without padding we reserve 1 column for the cursor.
-		const layoutWidth = Math.max(1, contentWidth - (paddingX ? 0 : 1));
+		const layoutWidth = Math.max(1, prefixedContentWidth - (paddingX ? 0 : 1));
 
 		// Store for cursor navigation (must match wrapping width)
 		this.lastWidth = layoutWidth;
@@ -501,11 +508,11 @@ export class Editor implements Component, Focusable {
 			}
 
 			// Calculate padding based on actual visible width
-			const padding = " ".repeat(Math.max(0, contentWidth - lineVisibleWidth));
+			const padding = " ".repeat(Math.max(0, prefixedContentWidth - lineVisibleWidth));
 			const lineRightPadding = cursorInPadding ? rightPadding.slice(1) : rightPadding;
 
 			// Render the line (no side borders, just horizontal lines above and below)
-			result.push(`${leftPadding}${displayText}${padding}${lineRightPadding}`);
+			result.push(`${leftPadding}${linePrefix}${displayText}${padding}${lineRightPadding}`);
 		}
 
 		// Render bottom border (with scroll indicator if more content below)

@@ -5,6 +5,7 @@ import type { AppKeybinding, KeybindingsManager } from "../../../core/keybinding
  * Custom editor that handles app-level keybindings for coding-agent.
  */
 export class CustomEditor extends Editor {
+	private static readonly USER_INPUT_PREFIX = "❯ ";
 	private keybindings: KeybindingsManager;
 	public actionHandlers: Map<AppKeybinding, () => void> = new Map();
 
@@ -18,6 +19,10 @@ export class CustomEditor extends Editor {
 	constructor(tui: TUI, theme: EditorTheme, keybindings: KeybindingsManager, options?: EditorOptions) {
 		super(tui, theme, options);
 		this.keybindings = keybindings;
+	}
+
+	protected override getLinePrefix(): string {
+		return CustomEditor.USER_INPUT_PREFIX;
 	}
 
 	/**
