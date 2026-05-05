@@ -1,9 +1,28 @@
 import { getOAuthProviders } from "@mariozechner/pi-ai/oauth";
-import { Container, type Focusable, getKeybindings, Input, Spacer, Text, type TUI } from "@mariozechner/pi-tui";
+import {
+	Container,
+	type Focusable,
+	getKeybindings,
+	Input,
+	type SelectItem,
+	SelectList,
+	type SelectListTheme,
+	Spacer,
+	Text,
+	type TUI,
+} from "@mariozechner/pi-tui";
 import { exec } from "child_process";
 import { theme } from "../theme/theme.js";
 import { DynamicBorder } from "./dynamic-border.js";
 import { keyHint } from "./keybinding-hints.js";
+
+const loginSelectListTheme: SelectListTheme = {
+	selectedPrefix: (text) => theme.fg("accent", text),
+	selectedText: (text) => theme.fg("accent", text),
+	description: (text) => theme.fg("dim", text),
+	scrollInfo: (text) => theme.fg("dim", text),
+	noMatch: (text) => theme.fg("dim", text),
+};
 
 /**
  * Login dialog component - replaces editor during OAuth login flow
@@ -15,6 +34,7 @@ export class LoginDialogComponent extends Container implements Focusable {
 	private abortController = new AbortController();
 	private inputResolver?: (value: string) => void;
 	private inputRejecter?: (error: Error) => void;
+	private selectList?: SelectList;
 
 	// Focusable implementation - propagate to input for IME cursor positioning
 	private _focused = false;
@@ -149,6 +169,45 @@ export class LoginDialogComponent extends Container implements Focusable {
 		});
 	}
 
+	showOptions<T extends string>(
+		message: string,
+		options: { label: string; value: T; description?: string }[],
+	): Promise<T> {
+		this.contentContainer.addChild(new Spacer(1));
+		this.contentContainer.addChild(new Text(theme.fg("text", message), 1, 0));
+
+		const items: SelectItem[] = options.map((option) => ({
+			value: option.value,
+			label: option.label,
+			description: option.description,
+		}));
+		this.selectList = new SelectList(items, 5, loginSelectListTheme);
+		this.contentContainer.addChild({
+			render: (width: number) => this.selectList?.render(width) ?? [],
+			invalidate: () => {},
+		});
+		this.contentContainer.addChild(
+			new Text(
+				`(${keyHint("tui.select.up", "↑↓ navigate,")} ${keyHint("tui.select.confirm", "select")}, ${keyHint("tui.select.cancel", "cancel")})`,
+				1,
+				0,
+			),
+		);
+		this.tui.requestRender();
+
+		return new Promise((resolve, reject) => {
+			this.selectList!.onSelect = (item) => {
+				this.selectList = undefined;
+				resolve(item.value as T);
+			};
+			this.selectList!.onCancel = () => {
+				this.selectList = undefined;
+				reject(new Error("Login cancelled"));
+				this.cancel();
+			};
+		});
+	}
+
 	/**
 	 * Show informational text without prompting for input.
 	 */
@@ -182,6 +241,11 @@ export class LoginDialogComponent extends Container implements Focusable {
 	}
 
 	handleInput(data: string): void {
+		if (this.selectList) {
+			this.selectList.handleInput(data);
+			return;
+		}
+
 		const kb = getKeybindings();
 
 		if (kb.matches(data, "tui.select.cancel")) {
@@ -189,7 +253,6 @@ export class LoginDialogComponent extends Container implements Focusable {
 			return;
 		}
 
-		// Pass to input
 		this.input.handleInput(data);
 	}
 }

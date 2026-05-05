@@ -14,6 +14,7 @@ import {
 	type ImageContent,
 	type Message,
 	type Model,
+	type OAuthPromptOptionValue,
 	type OAuthProviderId,
 } from "@mariozechner/pi-ai";
 import type {
@@ -194,6 +195,7 @@ function hasDefaultModelProvider(providerId: string): providerId is keyof typeof
 }
 
 const BEDROCK_PROVIDER_ID = "amazon-bedrock";
+const OPENAI_CODEX_PROVIDER_ID = "openai-codex";
 
 const BUILT_IN_MODEL_PROVIDERS = new Set<string>(getProviders());
 
@@ -4656,6 +4658,7 @@ export class InteractiveMode {
 
 		// Providers that use callback servers (can paste redirect URL)
 		const usesCallbackServer = providerInfo?.usesCallbackServer ?? false;
+		let selectedOpenAICodexAuthFlow: OAuthPromptOptionValue | undefined;
 
 		// Create login dialog component
 		const dialog = new LoginDialogComponent(
@@ -4694,7 +4697,11 @@ export class InteractiveMode {
 				onAuth: (info: { url: string; instructions?: string }) => {
 					dialog.showAuth(info.url, info.instructions);
 
-					if (usesCallbackServer) {
+					const shouldShowManualInput =
+						usesCallbackServer &&
+						(providerId !== OPENAI_CODEX_PROVIDER_ID || selectedOpenAICodexAuthFlow === "browser");
+
+					if (shouldShowManualInput) {
 						// Show input for manual paste, racing with callback
 						dialog
 							.showManualInput("Paste redirect URL below, or complete login in browser:")
@@ -4717,7 +4724,18 @@ export class InteractiveMode {
 					// For Anthropic: onPrompt is called immediately after
 				},
 
-				onPrompt: async (prompt: { message: string; placeholder?: string }) => {
+				onPrompt: async (prompt: {
+					message: string;
+					placeholder?: string;
+					options?: { label: string; value: OAuthPromptOptionValue; description?: string }[];
+				}) => {
+					if (prompt.options && prompt.options.length > 0) {
+						const response = await dialog.showOptions(prompt.message, prompt.options);
+						if (providerId === OPENAI_CODEX_PROVIDER_ID) {
+							selectedOpenAICodexAuthFlow = response;
+						}
+						return response;
+					}
 					return dialog.showPrompt(prompt.message, prompt.placeholder);
 				},
 

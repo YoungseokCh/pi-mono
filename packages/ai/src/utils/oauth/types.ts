@@ -12,10 +12,19 @@ export type OAuthProviderId = string;
 /** @deprecated Use OAuthProviderId instead */
 export type OAuthProvider = OAuthProviderId;
 
+export type OAuthPromptOptionValue = "headless" | "browser";
+
+export type OAuthPromptOption = {
+	label: string;
+	value: OAuthPromptOptionValue;
+	description?: string;
+};
+
 export type OAuthPrompt = {
 	message: string;
 	placeholder?: string;
 	allowEmpty?: boolean;
+	options?: OAuthPromptOption[];
 };
 
 export type OAuthAuthInfo = {
