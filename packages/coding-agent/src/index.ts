@@ -62,6 +62,7 @@ export type {
 	BeforeProviderRequestEvent,
 	BeforeProviderRequestEventResult,
 	BuildSystemPromptOptions,
+	ClearToolApprovalModeHandler,
 	CompactOptions,
 	ContextEvent,
 	ContextUsage,
@@ -110,6 +111,7 @@ export type {
 	SessionShutdownEvent,
 	SessionStartEvent,
 	SessionTreeEvent,
+	SetToolApprovalModeHandler,
 	SlashCommandInfo,
 	SlashCommandSource,
 	SourceInfo,
@@ -119,6 +121,7 @@ export type {
 	ToolDefinition,
 	ToolExecutionMode,
 	ToolInfo,
+	ToolPreviewContext,
 	ToolRenderResultOptions,
 	ToolResultEvent,
 	TurnEndEvent,
@@ -158,6 +161,19 @@ export type {
 	ResolvedResource,
 } from "./core/package-manager.js";
 export { DefaultPackageManager } from "./core/package-manager.js";
+export type {
+	PermissionDecision,
+	PermissionMode,
+	PermissionResult,
+	ToolPermissionHandler,
+	ToolPermissionRequest,
+	ToolPreview,
+	ToolPreviewBase,
+	ToolPreviewDiff,
+	ToolPreviewError,
+	ToolPreviewNone,
+	ToolPreviewText,
+} from "./core/permissions.js";
 export type { ResourceCollision, ResourceDiagnostic, ResourceLoader } from "./core/resource-loader.js";
 export { DefaultResourceLoader, loadProjectContextFiles } from "./core/resource-loader.js";
 // SDK for programmatic usage

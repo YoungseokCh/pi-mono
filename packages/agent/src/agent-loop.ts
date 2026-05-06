@@ -558,7 +558,10 @@ async function prepareToolCall(
 			if (beforeResult?.block) {
 				return {
 					kind: "immediate",
-					result: createErrorToolResult(beforeResult.reason || "Tool execution was blocked"),
+					result: createErrorToolResult(
+						beforeResult.reason || "Tool execution was blocked",
+						beforeResult.terminate,
+					),
 					isError: true,
 				};
 			}
@@ -660,10 +663,11 @@ async function finalizeExecutedToolCall(
 	};
 }
 
-function createErrorToolResult(message: string): AgentToolResult<any> {
+function createErrorToolResult(message: string, terminate?: boolean): AgentToolResult<any> {
 	return {
 		content: [{ type: "text", text: message }],
 		details: {},
+		terminate,
 	};
 }
 

@@ -73,6 +73,7 @@ import { type AppKeybinding, KeybindingsManager } from "../../core/keybindings.j
 import { createCompactionSummaryMessage } from "../../core/messages.js";
 import { defaultModelPerProvider, findExactModelReferenceMatch, resolveModelScope } from "../../core/model-resolver.js";
 import { DefaultPackageManager } from "../../core/package-manager.js";
+import type { ToolPreview } from "../../core/permissions.js";
 import { BUILT_IN_PROVIDER_DISPLAY_NAMES } from "../../core/provider-display-names.js";
 import type { ResourceDiagnostic } from "../../core/resource-loader.js";
 import { formatMissingSessionCwdPrompt, MissingSessionCwdError } from "../../core/session-cwd.js";
@@ -99,6 +100,7 @@ import { CountdownTimer } from "./components/countdown-timer.js";
 import { CustomEditor } from "./components/custom-editor.js";
 import { CustomMessageComponent } from "./components/custom-message.js";
 import { DaxnutsComponent } from "./components/daxnuts.js";
+import { renderDiff } from "./components/diff.js";
 import { DynamicBorder } from "./components/dynamic-border.js";
 import { EarendilAnnouncementComponent } from "./components/earendil-announcement.js";
 import { ExtensionEditorComponent } from "./components/extension-editor.js";
@@ -1465,6 +1467,9 @@ export class InteractiveMode {
 	 */
 	private async bindCurrentSessionExtensions(): Promise<void> {
 		const uiContext = this.createExtensionUIContext();
+		this.session.setToolPermissionHandler((request) =>
+			this.handleToolPermissionRequest(request.toolName, request.preview),
+		);
 		await this.session.bindExtensions({
 			uiContext,
 			commandContextActions: {
@@ -1544,6 +1549,36 @@ export class InteractiveMode {
 		this.setupExtensionShortcuts(extensionRunner);
 		this.showLoadedResources({ force: false, showDiagnosticsWhenQuiet: true });
 		this.showStartupNoticesIfNeeded();
+	}
+
+	private formatToolApprovalPreview(preview: ToolPreview): string {
+		const lines: string[] = [];
+		if ("title" in preview && preview.title) {
+			lines.push(preview.title);
+		}
+		if ("path" in preview && preview.path) {
+			lines.push(`Path: ${preview.path}`);
+		}
+
+		if (preview.kind === "diff") {
+			lines.push(renderDiff(preview.content, { filePath: preview.path }));
+		} else if (preview.kind === "text") {
+			lines.push(preview.content);
+		} else if (preview.kind === "error") {
+			lines.push(`Preview error: ${preview.error}`);
+		} else {
+			lines.push("No preview available.");
+		}
+
+		return lines.filter((line) => line.length > 0).join("\n\n");
+	}
+
+	private async handleToolPermissionRequest(toolName: string, preview: ToolPreview) {
+		const approved = await this.showExtensionConfirm(`Approve ${toolName}?`, this.formatToolApprovalPreview(preview));
+		if (approved) {
+			return { decision: "allow" as const };
+		}
+		return { decision: "deny" as const, reason: `Approval denied for ${toolName}.` };
 	}
 
 	private applyRuntimeSettings(): void {

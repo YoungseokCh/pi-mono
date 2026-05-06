@@ -76,8 +76,10 @@ import {
 	wrapRegisteredTools,
 } from "./extensions/index.js";
 import { emitSessionShutdownEvent } from "./extensions/runner.js";
+import type { ToolCallEventResult } from "./extensions/types.js";
 import type { BashExecutionMessage, CustomMessage } from "./messages.js";
 import type { ModelRegistry } from "./model-registry.js";
+import type { PermissionMode, ToolPermissionHandler, ToolPermissionRequest, ToolPreview } from "./permissions.js";
 import { expandPromptTemplate, type PromptTemplate } from "./prompt-templates.js";
 import type { ResourceExtensionPaths, ResourceLoader } from "./resource-loader.js";
 import type { BranchSummaryEntry, CompactionEntry, SessionManager } from "./session-manager.js";
@@ -296,6 +298,8 @@ export class AgentSession {
 	private _extensionShutdownHandler?: ShutdownHandler;
 	private _extensionErrorListener?: ExtensionErrorListener;
 	private _extensionErrorUnsubscriber?: () => void;
+	private _toolApprovalModes: Partial<Record<string, PermissionMode>> = {};
+	private _toolPermissionHandler?: ToolPermissionHandler;
 
 	// Model registry for API key resolution
 	private _modelRegistry: ModelRegistry;
@@ -378,13 +382,29 @@ export class AgentSession {
 	private _installAgentToolHooks(): void {
 		this.agent.beforeToolCall = async ({ toolCall, args }) => {
 			const runner = this._extensionRunner;
-			if (!runner.hasHandlers("tool_call")) {
+			const needsApproval = this._toolRequiresApproval(toolCall.name);
+			if (!needsApproval && !runner.hasHandlers("tool_call")) {
 				return undefined;
 			}
 
 			await this._agentEventQueue;
 
 			try {
+				if (needsApproval) {
+					const permissionResult = await this._checkToolPermission(
+						toolCall.name,
+						toolCall.id,
+						args as Record<string, unknown>,
+					);
+					if (permissionResult?.block) {
+						return permissionResult;
+					}
+				}
+
+				if (!runner.hasHandlers("tool_call")) {
+					return undefined;
+				}
+
 				return await runner.emitToolCall({
 					type: "tool_call",
 					toolName: toolCall.name,
@@ -425,6 +445,64 @@ export class AgentSession {
 				isError: hookResult.isError ?? isError,
 			};
 		};
+	}
+
+	private _toolRequiresApproval(toolName: string): boolean {
+		return this._toolApprovalModes[toolName] === "always";
+	}
+
+	private async _buildToolPermissionRequest(
+		toolName: string,
+		toolCallId: string,
+		input: Record<string, unknown>,
+	): Promise<ToolPermissionRequest> {
+		return {
+			type: "tool_call",
+			toolName,
+			toolCallId,
+			input,
+			preview: await this._buildToolPermissionPreview(toolName, input),
+		};
+	}
+
+	private async _checkToolPermission(
+		toolName: string,
+		toolCallId: string,
+		input: Record<string, unknown>,
+	): Promise<ToolCallEventResult | undefined> {
+		if (!this._toolPermissionHandler) {
+			return {
+				block: true,
+				reason: `Approval required for ${toolName}, but no permission handler is available.`,
+				terminate: true,
+			};
+		}
+
+		const request = await this._buildToolPermissionRequest(toolName, toolCallId, input);
+		if (request.preview.kind === "error") {
+			return { block: true, reason: `Tool preview failed for ${toolName}: ${request.preview.error}` };
+		}
+
+		const result = await this._toolPermissionHandler(request);
+
+		if (result.decision === "deny") {
+			return { block: true, reason: result.reason ?? `Approval denied for ${toolName}.`, terminate: true };
+		}
+
+		return undefined;
+	}
+
+	private async _buildToolPermissionPreview(toolName: string, input: Record<string, unknown>): Promise<ToolPreview> {
+		const definition = this.getToolDefinition(toolName);
+		if (!definition?.previewCall) {
+			return { kind: "none" as const };
+		}
+
+		try {
+			return await definition.previewCall(input as never, { cwd: this._cwd });
+		} catch (error) {
+			return { kind: "error" as const, error: error instanceof Error ? error.message : String(error) };
+		}
 	}
 
 	// =========================================================================
@@ -812,6 +890,20 @@ export class AgentSession {
 
 	getToolDefinition(name: string): ToolDefinition | undefined {
 		return this._toolDefinitions.get(name)?.definition;
+	}
+
+	setToolApprovalMode(toolName: string, mode: PermissionMode): void {
+		this._toolApprovalModes = { ...this._toolApprovalModes, [toolName]: mode };
+	}
+
+	clearToolApprovalMode(toolName: string): void {
+		const approvalModes = { ...this._toolApprovalModes };
+		delete approvalModes[toolName];
+		this._toolApprovalModes = approvalModes;
+	}
+
+	setToolPermissionHandler(handler: ToolPermissionHandler | undefined): void {
+		this._toolPermissionHandler = handler;
 	}
 
 	/**
@@ -2189,6 +2281,8 @@ export class AgentSession {
 				getActiveTools: () => this.getActiveToolNames(),
 				getAllTools: () => this.getAllTools(),
 				setActiveTools: (toolNames) => this.setActiveToolsByName(toolNames),
+				setToolApprovalMode: (toolName, mode) => this.setToolApprovalMode(toolName, mode),
+				clearToolApprovalMode: (toolName) => this.clearToolApprovalMode(toolName),
 				refreshTools: () => this._refreshToolRegistry(),
 				getCommands,
 				setModel: async (model) => {

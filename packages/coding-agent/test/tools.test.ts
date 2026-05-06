@@ -7,11 +7,13 @@ import { type BashOperations, createBashTool, createLocalBashOperations } from "
 import { computeEditsDiff } from "../src/core/tools/edit-diff.js";
 import {
 	createEditTool,
+	createEditToolDefinition,
 	createFindTool,
 	createGrepTool,
 	createLsTool,
 	createReadTool,
 	createWriteTool,
+	createWriteToolDefinition,
 } from "../src/index.js";
 import * as shellModule from "../src/utils/shell.js";
 
@@ -221,6 +223,36 @@ describe("Coding Agent Tools", () => {
 
 			expect(getTextOutput(result)).toContain("Successfully wrote");
 		});
+
+		it("should preview new file writes as text", async () => {
+			const writeDefinition = createWriteToolDefinition(testDir);
+			const preview = await writeDefinition.previewCall?.(
+				{ path: "new-file.ts", content: "export const value = 1;\n" },
+				{ cwd: testDir },
+			);
+
+			expect(preview).toEqual({
+				kind: "text",
+				path: "new-file.ts",
+				content: "export const value = 1;\n",
+				language: "typescript",
+			});
+		});
+
+		it("should preview existing file writes as a diff", async () => {
+			const testFile = join(testDir, "write-preview.txt");
+			writeFileSync(testFile, "old\n");
+			const writeDefinition = createWriteToolDefinition(testDir);
+
+			const preview = await writeDefinition.previewCall?.({ path: testFile, content: "new\n" }, { cwd: testDir });
+
+			expect(preview?.kind).toBe("diff");
+			if (preview?.kind === "diff") {
+				expect(preview.path).toBe(testFile);
+				expect(preview.content).toContain("old");
+				expect(preview.content).toContain("new");
+			}
+		});
 	});
 
 	describe("edit tool", () => {
@@ -416,6 +448,24 @@ describe("Coding Agent Tools", () => {
 			const result = await computeEditsDiff(missingFile, [{ oldText: "hello", newText: "world" }], testDir);
 
 			expect(result).toEqual({ error: `Could not edit file: ${missingFile}. Error code: ENOENT.` });
+		});
+
+		it("should expose edit preview through tool definition", async () => {
+			const testFile = join(testDir, "edit-preview.txt");
+			writeFileSync(testFile, "hello\n");
+			const editDefinition = createEditToolDefinition(testDir);
+
+			const preview = await editDefinition.previewCall?.(
+				{ path: testFile, edits: [{ oldText: "hello", newText: "world" }] },
+				{ cwd: testDir },
+			);
+
+			expect(preview?.kind).toBe("diff");
+			if (preview?.kind === "diff") {
+				expect(preview.path).toBe(testFile);
+				expect(preview.content).toContain("hello");
+				expect(preview.content).toContain("world");
+			}
 		});
 
 		it("should include EACCES in diff preview for unreadable files", async () => {

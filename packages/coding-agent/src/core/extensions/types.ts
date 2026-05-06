@@ -49,6 +49,7 @@ import type { ReadonlyFooterDataProvider } from "../footer-data-provider.js";
 import type { KeybindingsManager } from "../keybindings.js";
 import type { CustomMessage } from "../messages.js";
 import type { ModelRegistry } from "../model-registry.js";
+import type { PermissionMode, ToolPreview } from "../permissions.js";
 import type {
 	BranchSummaryEntry,
 	CompactionEntry,
@@ -420,6 +421,12 @@ export interface ToolRenderContext<TState = any, TArgs = any> {
 	isError: boolean;
 }
 
+/** Context passed to tool preview builders. */
+export interface ToolPreviewContext {
+	/** Working directory for this tool call. */
+	cwd: string;
+}
+
 /**
  * Tool definition for registerTool().
  */
@@ -459,6 +466,9 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
 		onUpdate: AgentToolUpdateCallback<TDetails> | undefined,
 		ctx: ExtensionContext,
 	): Promise<AgentToolResult<TDetails>>;
+
+	/** Optional UI-agnostic preview for a tool call before execution. */
+	previewCall?(args: Static<TParams>, context: ToolPreviewContext): Promise<ToolPreview> | ToolPreview;
 
 	/** Custom rendering for tool call display */
 	renderCall?: (args: Static<TParams>, theme: Theme, context: ToolRenderContext<TState, Static<TParams>>) => Component;
@@ -985,6 +995,8 @@ export interface ToolCallEventResult {
 	/** Block tool execution. To modify arguments, mutate `event.input` in place instead. */
 	block?: boolean;
 	reason?: string;
+	/** Stop the agent after the current tool batch when this block result is returned. */
+	terminate?: boolean;
 }
 
 /** Result from user_bash event handler */
@@ -1217,6 +1229,12 @@ export interface ExtensionAPI {
 	/** Set the active tools by name. */
 	setActiveTools(toolNames: string[]): void;
 
+	/** Set the approval mode for a single tool. */
+	setToolApprovalMode(toolName: string, mode: PermissionMode): void;
+
+	/** Clear the approval mode override for a single tool. */
+	clearToolApprovalMode(toolName: string): void;
+
 	/** Get available slash commands in the current session. */
 	getCommands(): SlashCommandInfo[];
 
@@ -1433,6 +1451,10 @@ export type GetCommandsHandler = () => SlashCommandInfo[];
 
 export type SetActiveToolsHandler = (toolNames: string[]) => void;
 
+export type SetToolApprovalModeHandler = (toolName: string, mode: PermissionMode) => void;
+
+export type ClearToolApprovalModeHandler = (toolName: string) => void;
+
 export type RefreshToolsHandler = () => void;
 
 export type SetModelHandler = (model: Model<any>) => Promise<boolean>;
@@ -1479,6 +1501,8 @@ export interface ExtensionActions {
 	getActiveTools: GetActiveToolsHandler;
 	getAllTools: GetAllToolsHandler;
 	setActiveTools: SetActiveToolsHandler;
+	setToolApprovalMode: SetToolApprovalModeHandler;
+	clearToolApprovalMode: ClearToolApprovalModeHandler;
 	refreshTools: RefreshToolsHandler;
 	getCommands: GetCommandsHandler;
 	setModel: SetModelHandler;

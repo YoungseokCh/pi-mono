@@ -43,10 +43,12 @@ export type AgentToolCall = Extract<AssistantMessage["content"][number], { type:
  *
  * Returning `{ block: true }` prevents the tool from executing. The loop emits an error tool result instead.
  * `reason` becomes the text shown in that error result. If omitted, a default blocked message is used.
+ * `terminate` asks the loop to stop after the current tool batch instead of continuing with another LLM call.
  */
 export interface BeforeToolCallResult {
 	block?: boolean;
 	reason?: string;
+	terminate?: boolean;
 }
 
 /**

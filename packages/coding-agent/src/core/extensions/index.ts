@@ -38,6 +38,7 @@ export type {
 	BeforeProviderRequestEvent,
 	BeforeProviderRequestEventResult,
 	BuildSystemPromptOptions,
+	ClearToolApprovalModeHandler,
 	// Context
 	CompactOptions,
 	// Events - Agent
@@ -130,6 +131,7 @@ export type {
 	SetLabelHandler,
 	SetModelHandler,
 	SetThinkingLevelHandler,
+	SetToolApprovalModeHandler,
 	TerminalInputHandler,
 	// Events - Tool
 	ToolCallEvent,
@@ -143,6 +145,7 @@ export type {
 	ToolExecutionStartEvent,
 	ToolExecutionUpdateEvent,
 	ToolInfo,
+	ToolPreviewContext,
 	ToolRenderResultOptions,
 	ToolResultEvent,
 	ToolResultEventResult,

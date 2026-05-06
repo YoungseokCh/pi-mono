@@ -1,11 +1,13 @@
 import type { AgentTool } from "@mariozechner/pi-agent-core";
 import { Container, Text } from "@mariozechner/pi-tui";
-import { mkdir as fsMkdir, writeFile as fsWriteFile } from "fs/promises";
+import { mkdir as fsMkdir, readFile as fsReadFile, writeFile as fsWriteFile } from "fs/promises";
 import { dirname } from "path";
 import { type Static, Type } from "typebox";
 import { keyHint } from "../../modes/interactive/components/keybinding-hints.js";
 import { getLanguageFromPath, highlightCode } from "../../modes/interactive/theme/theme.js";
 import type { ToolDefinition, ToolRenderResultOptions } from "../extensions/types.js";
+import type { ToolPreview } from "../permissions.js";
+import { generateDiffString, normalizeToLF, stripBom } from "./edit-diff.js";
 import { withFileMutationQueue } from "./file-mutation-queue.js";
 import { resolveToCwd } from "./path-utils.js";
 import { invalidArgText, normalizeDisplayText, replaceTabs, shortenPath, str } from "./render-utils.js";
@@ -23,6 +25,8 @@ export type WriteToolInput = Static<typeof writeSchema>;
  * Override these to delegate file writing to remote systems (for example SSH).
  */
 export interface WriteOperations {
+	/** Read file contents as a Buffer for previews */
+	readFile?: (absolutePath: string) => Promise<Buffer>;
 	/** Write content to a file */
 	writeFile: (absolutePath: string, content: string) => Promise<void>;
 	/** Create directory recursively */
@@ -30,6 +34,7 @@ export interface WriteOperations {
 }
 
 const defaultWriteOperations: WriteOperations = {
+	readFile: (path) => fsReadFile(path),
 	writeFile: (path, content) => fsWriteFile(path, content, "utf-8"),
 	mkdir: (dir) => fsMkdir(dir, { recursive: true }).then(() => {}),
 };
@@ -178,6 +183,38 @@ function formatWriteResult(
 	return `\n${theme.fg("error", output)}`;
 }
 
+function validateWritePreviewInput(input: WriteToolInput): { path: string; content: string } {
+	if (typeof input.path !== "string") {
+		throw new Error("Write tool input is invalid. path must be a string.");
+	}
+	if (typeof input.content !== "string") {
+		throw new Error("Write tool input is invalid. content must be a string.");
+	}
+	return { path: input.path, content: input.content };
+}
+
+async function previewWriteCall(input: WriteToolInput, cwd: string, ops: WriteOperations): Promise<ToolPreview> {
+	try {
+		const { path, content } = validateWritePreviewInput(input);
+		const absolutePath = resolveToCwd(path, cwd);
+		const readFile = ops.readFile ?? fsReadFile;
+		try {
+			const rawExistingContent = (await readFile(absolutePath)).toString("utf-8");
+			const { text: existingContent } = stripBom(rawExistingContent);
+			const diff = generateDiffString(normalizeToLF(existingContent), normalizeToLF(content));
+			return { kind: "diff", path, content: diff.diff, firstChangedLine: diff.firstChangedLine };
+		} catch (error: unknown) {
+			if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+				return { kind: "text", path, content, language: getLanguageFromPath(path) };
+			}
+			const errorMessage = error instanceof Error && "code" in error ? `Error code: ${error.code}` : String(error);
+			return { kind: "error", path, error: `Could not preview write to ${path}. ${errorMessage}.` };
+		}
+	} catch (error) {
+		return { kind: "error", path: input.path, error: error instanceof Error ? error.message : String(error) };
+	}
+}
+
 export function createWriteToolDefinition(
 	cwd: string,
 	options?: WriteToolOptions,
@@ -191,6 +228,7 @@ export function createWriteToolDefinition(
 		promptSnippet: "Create or overwrite files",
 		promptGuidelines: ["Use write only for new files or complete rewrites."],
 		parameters: writeSchema,
+		previewCall: (input, context) => previewWriteCall(input, context.cwd, ops),
 		async execute(
 			_toolCallId,
 			{ path, content }: { path: string; content: string },

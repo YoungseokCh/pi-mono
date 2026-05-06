@@ -5,6 +5,7 @@ import { access as fsAccess, readFile as fsReadFile, writeFile as fsWriteFile } 
 import { type Static, Type } from "typebox";
 import { renderDiff } from "../../modes/interactive/components/diff.js";
 import type { ToolDefinition } from "../extensions/types.js";
+import type { ToolPreview } from "../permissions.js";
 import {
 	applyEditsToNormalizedContent,
 	computeEditsDiff,
@@ -118,6 +119,15 @@ function validateEditInput(input: EditToolInput): { path: string; edits: Edit[] 
 		throw new Error("Edit tool input is invalid. edits must contain at least one replacement.");
 	}
 	return { path: input.path, edits: input.edits };
+}
+
+async function previewEditCall(input: EditToolInput, cwd: string): Promise<ToolPreview> {
+	const { path, edits } = validateEditInput(input);
+	const preview = await computeEditsDiff(path, edits, cwd);
+	if ("error" in preview) {
+		return { kind: "error", path, error: preview.error };
+	}
+	return { kind: "diff", path, content: preview.diff, firstChangedLine: preview.firstChangedLine };
 }
 
 type RenderableEditArgs = {
@@ -306,6 +316,7 @@ export function createEditToolDefinition(
 		parameters: editSchema,
 		renderShell: "self",
 		prepareArguments: prepareEditArguments,
+		previewCall: (input, context) => previewEditCall(input, context.cwd),
 		async execute(_toolCallId, input: EditToolInput, signal?: AbortSignal, _onUpdate?, _ctx?) {
 			const { path, edits } = validateEditInput(input);
 			const absolutePath = resolveToCwd(path, cwd);
@@ -431,7 +442,13 @@ export function createEditToolDefinition(
 				component.settledError = false;
 			}
 
-			if (context.argsComplete && previewInput && !component.preview && !component.previewPending) {
+			if (
+				context.executionStarted &&
+				context.argsComplete &&
+				previewInput &&
+				!component.preview &&
+				!component.previewPending
+			) {
 				component.previewPending = true;
 				const requestKey = argsKey;
 				void computeEditsDiff(previewInput.path, previewInput.edits, context.cwd).then((preview) => {
